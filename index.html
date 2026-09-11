@@ -244,9 +244,10 @@ function toast(m){var t=document.getElementById("toast");t.textContent=m;t.class
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){toast("Sauvegarde impossible");}}
 function load(){try{var r=localStorage.getItem(KEY);if(r){var p=JSON.parse(r);
   if(p&&p.obs){db=p;db.rounds=db.rounds||[];db.obs=db.obs||{};db.regs=db.regs||[];db.ev=db.ev||"924487";}}}catch(e){}}
-function obsKey(num,t){return num+":"+t;}
+function obsKey(num,t){return db.ev+":"+num+":"+t;}
 function getObs(num,t){return db.obs[obsKey(num,t)]||null;}
 function nDecks(o){return o?(o.d||[]).filter(function(d){return d&&d.length;}).length:0;}
+function obsCount(){var pre=db.ev+":";return Object.keys(db.obs).filter(function(k){return k.indexOf(pre)===0;}).length;}
 function curRound(){
   if(!db.rounds.length) return null;
   var f=db.rounds.filter(function(r){return r.num===db.cur;});
@@ -492,7 +493,7 @@ function renderScout(){
   }
   if(!n){
     var r2=curRound();
-    var vus=Object.keys(db.obs).length;
+    var vus=obsCount();
     if(!r2||!r2.tables){
       out.innerHTML='<div class="empty"><strong>'+
         ((db.regs&&db.regs.length)?db.regs.length+" joueurs inscrits":"Aucune donnee chargee")+
@@ -756,7 +757,7 @@ document.getElementById("bLoadEv").addEventListener("click",async function(){
   var v=document.getElementById("evId").value.trim();
   if(!/^[0-9]+$/.test(v)){toast("Numero invalide");return;}
   if(v!==db.ev){
-    if(!confirm("Changer de tournoi ? Tes observations restent en memoire mais ne correspondront plus aux tables.")) return;
+    if(!confirm("Charger le tournoi "+v+" ? Tes observations actuelles sont conservees a part et reviendront si tu reviens sur ce tournoi.")) return;
     db.ev=v;db.rounds=[];db.cur=null;db.regs=[];save();
   }
   await doSync();
@@ -779,9 +780,10 @@ document.getElementById("doImport").addEventListener("click",function(){
   }catch(e){toast("Sauvegarde illisible");}
 });
 document.getElementById("doReset").addEventListener("click",function(){
-  var n=Object.keys(db.obs).length;
-  if(!confirm("Effacer les "+n+" tables encodees ? Les appariements restent.")) return;
-  db.obs={};save();refresh();go("scout");toast("Observations effacees");
+  var n=obsCount();
+  if(!confirm("Effacer les "+n+" tables encodees de ce tournoi ?")) return;
+  var pre=db.ev+":";
+  Object.keys(db.obs).forEach(function(k){if(k.indexOf(pre)===0) delete db.obs[k];});save();refresh();go("scout");toast("Observations effacees");
 });
 
 document.addEventListener("click",function(e){
