@@ -149,6 +149,35 @@ border:1px solid var(--line);border-radius:999px;padding:3px 9px}
   <input id="gMe" class="field" autocapitalize="words" autocorrect="off" spellcheck="false">
   <div class="actions"><button class="btn primary" id="gGo">Entrer</button></div>
 </div>
+<div class="gate off" id="lobby">
+  <div class="logo">NEXUS <b>SCOUT</b></div>
+  <h1 id="lobHi">Salons</h1>
+  <p>Un salon rassemble ton equipe autour d un tournoi. Celui qui le cree partage le code, les autres le rejoignent.</p>
+  <div class="err" id="lobErr"></div>
+
+  <div class="card">
+    <h3>Creer un tournoi</h3>
+    <label for="lobEv">Numero du tournoi <span class="sub">- le # dans l URL Ravensburger</span></label>
+    <input id="lobEv" class="field" inputmode="numeric" placeholder="924487">
+    <div class="actions"><button class="btn primary" id="lobCreate">Creer le salon</button></div>
+    <div id="lobNew"></div>
+  </div>
+
+  <div class="card">
+    <h3>Rejoindre</h3>
+    <label for="lobCode">Code du salon</label>
+    <input id="lobCode" class="field" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="colle le code recu">
+    <div class="actions"><button class="btn primary" id="lobJoin">Rejoindre</button></div>
+  </div>
+
+  <div class="card" id="lobMineWrap">
+    <h3>Mes salons</h3>
+    <div id="lobMine"></div>
+  </div>
+
+  <div class="actions"><button class="btn" id="lobSolo">Continuer sans salon</button></div>
+</div>
+
 <header>
   <div class="brandline">
     <div class="brand">NEXUS <b>SCOUT</b></div>
@@ -219,18 +248,16 @@ border:1px solid var(--line);border-radius:999px;padding:3px 9px}
     <div class="card"><h3>Decks identifies</h3><div id="pairStats"></div></div>
     <div class="card">
       <h3>Salon d equipe</h3>
-      <p class="sub" style="margin:0 0 10px" id="roomState">Aucun salon. Les donnees restent sur ce telephone.</p>
-      <label for="roomCode">Code du salon</label>
-      <input id="roomCode" class="field" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="colle le code de l equipe">
+      <p class="sub" style="margin:0 0 10px" id="roomState">Aucun salon.</p>
+      <input id="roomCode" class="field" readonly style="font-size:14px">
       <div class="actions">
-        <button class="btn primary" id="bJoin">Rejoindre</button>
-        <button class="btn" id="bCreate">Creer</button>
+        <button class="btn" id="bCopyCode">Copier le code</button>
+        <button class="btn" id="bPull">Actualiser</button>
       </div>
       <div class="actions">
-        <button class="btn" id="bPull">Recuperer</button>
-        <button class="btn" id="bPush">Envoyer</button>
+        <button class="btn" id="bLobby">Changer de salon</button>
+        <button class="btn danger" id="bLeave">Quitter</button>
       </div>
-      <div class="actions"><button class="btn danger" id="bLeave">Quitter le salon</button></div>
     </div>
     <div class="card">
       <h3>Journal d equipe</h3>
@@ -317,6 +344,13 @@ var SYNC={
   }
 };
 var syncState="off",pushTimer=null,pullTimer=null;
+function knownRooms(){return db.rooms||(db.rooms=[]);}
+function rememberRoom(code,ev,name){
+  var l=knownRooms(),f=l.filter(function(r){return r.code===code;})[0];
+  if(f){f.ev=ev||f.ev;f.name=name||f.name;}
+  else l.unshift({code:code,ev:ev||"",name:name||""});
+  db.rooms=l.slice(0,12);
+}
 function roomKey(){return "ev-"+db.ev;}
 function myObs(){
   var pre=db.ev+":",o={};
@@ -339,8 +373,7 @@ function setSync(s,msg){
   if(!db.room){el.className="sub";el.textContent="Aucun salon. Les donnees restent sur ce telephone.";return;}
   el.className="sub";
   el.innerHTML='<span class="badge '+(s==="ok"?"on":s==="ko"?"ko":"")+'"><i></i>'+
-    esc(msg||(s==="ok"?"synchronise":s==="ko"?"hors ligne":"salon actif"))+'</span> '+
-    '<span style="word-break:break-all">code '+esc(db.room)+'</span>';
+    esc(msg||(s==="ok"?"synchronise":s==="ko"?"hors ligne":"salon actif"))+'</span>';
 }
 async function pull(silent){
   if(!db.room) return;
@@ -411,7 +444,7 @@ function toast(m){var t=document.getElementById("toast");t.textContent=m;t.class
   clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("on");},2400);}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){toast("Sauvegarde impossible");}}
 function load(){try{var r=localStorage.getItem(KEY)||localStorage.getItem(OLDKEY);if(r){var p=JSON.parse(r);
-  if(p&&p.obs){db=p;db.rounds=db.rounds||[];db.obs=db.obs||{};db.regs=db.regs||[];db.ev=db.ev||"924487";db.room=db.room||"";db.me=db.me||"";}}}catch(e){}}
+  if(p&&p.obs){db=p;db.rounds=db.rounds||[];db.obs=db.obs||{};db.regs=db.regs||[];db.ev=db.ev||"924487";db.room=db.room||"";db.me=db.me||"";db.rooms=db.rooms||[];}}}catch(e){}}
 function obsKey(num,t){return db.ev+":"+num+":"+t;}
 function getObs(num,t){return db.obs[obsKey(num,t)]||null;}
 function nDecks(o){return o?(o.d||[]).filter(function(d){return d&&d.length;}).length:0;}
@@ -754,6 +787,13 @@ function paintSlots(){
     }).join("");
   });
 }
+function syncSlot(s){
+  var g=document.querySelector('.grid[data-slot="'+s+'"]');
+  if(!g) return;
+  [].forEach.call(g.querySelectorAll(".ink"),function(b){
+    b.setAttribute("aria-pressed", draft.d[s].indexOf(b.dataset.ink)>=0 ? "true":"false");
+  });
+}
 function paintOwners(){
   [0,1].forEach(function(s){
     var w=document.getElementById("eOwnWrap"+s);
@@ -963,7 +1003,7 @@ document.addEventListener("click",function(e){
     if(i>=0) a.splice(i,1);
     else if(a.length>=2) toast("Deux encres maximum par deck");
     else a.push(k);
-    paintSlots();paintOwners();
+    syncSlot(s);paintOwners();
     return;
   }
   var ow=e.target.closest("[data-own]");
@@ -994,39 +1034,120 @@ document.addEventListener("click",function(e){
   if(nb){go(nb.dataset.go);return;}
 });
 
-document.getElementById("bCreate").addEventListener("click",async function(){
-  if(db.room&&!confirm("Remplacer le salon actuel par un nouveau ?")) return;
-  toast("Creation du salon...");
+/* ---------- salon : creation, arrivee, sortie ---------- */
+async function createRoom(ev){
+  var id=await SYNC.create();
+  var nom="";
+  try{ var e=await apiGet("/events/"+ev+"/"); nom=e.name||""; }catch(err){}
+  await SYNC.put(id,"meta",{ev:ev,name:nom,by:db.me||"?",at:Date.now()});
+  db.room=id; db.ev=ev; db.rounds=[]; db.cur=null; db.regs=[];
+  rememberRoom(id,ev,nom); save();
+  return {code:id,name:nom};
+}
+async function joinRoom(code){
+  var meta=await SYNC.get(code,"meta");
+  if(!meta||!meta.ev) throw new Error("code inconnu ou salon vide");
+  db.room=code;
+  if(String(meta.ev)!==String(db.ev)){ db.ev=String(meta.ev); db.rounds=[]; db.cur=null; db.regs=[]; }
+  rememberRoom(code,String(meta.ev),meta.name||""); save();
+  return meta;
+}
+function renderMine(){
+  var el=document.getElementById("lobMine");
+  var l=knownRooms();
+  document.getElementById("lobMineWrap").style.display=l.length?"":"none";
+  if(!l.length){el.innerHTML="";return;}
+  el.innerHTML=l.map(function(r){
+    return '<button class="row" data-room="'+esc(r.code)+'"><span class="bars"><i style="background:'+
+      (r.code===db.room?"#E8C46A":"#332E44")+'"></i></span><span class="rowbody">'+
+      '<span class="name">'+esc(r.name||("Tournoi "+r.ev))+'</span>'+
+      '<span class="inks">#'+esc(r.ev)+'  -  code '+esc(r.code)+'</span></span></button>';
+  }).join("");
+}
+function openLobby(){
+  document.getElementById("gate").classList.add("off");
+  document.getElementById("lobby").classList.remove("off");
+  document.getElementById("lobHi").textContent=db.me?("Salut "+db.me):"Salons";
+  document.getElementById("lobEv").value=db.ev||"";
+  document.getElementById("lobErr").textContent="";
+  document.getElementById("lobNew").innerHTML="";
+  renderMine();
+}
+function enterApp(){
+  document.getElementById("gate").classList.add("off");
+  document.getElementById("lobby").classList.add("off");
+  refresh(); renderRoundSelect(); go("scout");
+  if(db.room){ startAutoPull(); pull(true); }
+}
+function lobBusy(b,txt){
+  var c=document.getElementById("lobCreate"),j=document.getElementById("lobJoin");
+  c.disabled=b;j.disabled=b;c.style.opacity=b?.5:1;j.style.opacity=b?.5:1;
+  if(txt) document.getElementById("lobErr").textContent=txt;
+}
+document.getElementById("lobCreate").addEventListener("click",async function(){
+  var ev=document.getElementById("lobEv").value.trim();
+  if(!/^[0-9]+$/.test(ev)){document.getElementById("lobErr").textContent="Mets le numero du tournoi, chiffres uniquement.";return;}
+  lobBusy(true,"Creation du salon...");
   try{
-    var id=await SYNC.create();
-    db.room=id;save();
-    setSync("ok","salon cree");
-    document.getElementById("roomCode").value=id;
-    startAutoPull();
-    await push();
-    toast("Salon cree, partage le code");
-  }catch(e){ setSync("ko","echec"); toast("Creation impossible : "+e.message); }
+    var r=await createRoom(ev);
+    document.getElementById("lobErr").textContent="";
+    document.getElementById("lobNew").innerHTML=
+      '<p class="sub" style="margin:12px 0 6px">Partage ce code a ton equipe :</p>'+
+      '<input class="field" readonly value="'+esc(r.code)+'" style="font-size:15px" id="lobNewCode">'+
+      '<div class="actions"><button class="btn" id="lobCopy">Copier le code</button>'+
+      '<button class="btn primary" id="lobEnter">Entrer</button></div>';
+    renderMine();
+  }catch(e){ document.getElementById("lobErr").textContent="Creation impossible : "+e.message; }
+  lobBusy(false);
 });
-document.getElementById("bJoin").addEventListener("click",async function(){
-  var v=document.getElementById("roomCode").value.trim();
-  if(!v){toast("Colle le code du salon");return;}
-  db.room=v;save();setSync("wait","connexion...");
-  startAutoPull();
-  await pull();
+document.getElementById("lobJoin").addEventListener("click",async function(){
+  var c=document.getElementById("lobCode").value.trim();
+  if(!c){document.getElementById("lobErr").textContent="Colle le code recu.";return;}
+  lobBusy(true,"Connexion au salon...");
+  try{
+    var m=await joinRoom(c);
+    lobBusy(false);
+    toast("Salon rejoint : "+(m.name||("tournoi "+m.ev)));
+    enterApp();
+    await pull();
+    await doSync();
+  }catch(e){ document.getElementById("lobErr").textContent="Impossible de rejoindre : "+e.message; lobBusy(false); }
 });
+document.getElementById("lobSolo").addEventListener("click",function(){
+  db.room="";save();enterApp();
+});
+document.addEventListener("click",async function(e){
+  var t=e.target;
+  if(t&&t.id==="lobCopy"){
+    var v=document.getElementById("lobNewCode").value;
+    if(navigator.clipboard) navigator.clipboard.writeText(v).then(function(){toast("Code copie");},function(){prompt("Code :",v);});
+    else prompt("Code :",v);
+    return;
+  }
+  if(t&&t.id==="lobEnter"){ enterApp(); await doSync(); return; }
+  var rm=t.closest?t.closest("[data-room]"):null;
+  if(rm&&!document.getElementById("lobby").classList.contains("off")){
+    var code=rm.dataset.room;
+    document.getElementById("lobCode").value=code;
+    document.getElementById("lobJoin").click();
+  }
+});
+
+/* ---------- salon depuis l onglet Meta ---------- */
 document.getElementById("bPull").addEventListener("click",function(){pull();});
-document.getElementById("bPush").addEventListener("click",function(){push();});
+document.getElementById("bCopyCode").addEventListener("click",function(){
+  if(!db.room){toast("Aucun salon");return;}
+  if(navigator.clipboard) navigator.clipboard.writeText(db.room).then(function(){toast("Code copie");},function(){prompt("Code :",db.room);});
+  else prompt("Code :",db.room);
+});
+document.getElementById("bLobby").addEventListener("click",function(){openLobby();});
 document.getElementById("bLeave").addEventListener("click",function(){
   if(!db.room){toast("Aucun salon");return;}
   if(!confirm("Quitter le salon ? Tes donnees restent sur ce telephone.")) return;
-  db.room="";save();clearInterval(pullTimer);setSync("off");toast("Salon quitte");
+  db.room="";save();clearInterval(pullTimer);setSync("off");toast("Salon quitte");openLobby();
 });
 
-function openApp(){
-  document.getElementById("gate").classList.add("off");
-  load();refresh();renderRoundSelect();go("scout");
-  if(db.room){ startAutoPull(); pull(true); }
-}
+/* ---------- connexion ---------- */
 document.getElementById("gGo").addEventListener("click",function(){
   var u=document.getElementById("gUser").value.trim().toLowerCase();
   var p=document.getElementById("gPass").value;
@@ -1036,16 +1157,28 @@ document.getElementById("gGo").addEventListener("click",function(){
   if(!me){err.textContent="Mets ton prenom, il signe tes saisies.";return;}
   err.textContent="";
   localStorage.setItem("nexus-ok","1");
-  openApp();
   db.me=me;save();
+  openLobby();
 });
-document.getElementById("gPass").addEventListener("keydown",function(e){
-  if(e.key==="Enter") document.getElementById("gGo").click();});
-document.getElementById("gMe").addEventListener("keydown",function(e){
-  if(e.key==="Enter") document.getElementById("gGo").click();});
+["gPass","gMe"].forEach(function(id){
+  document.getElementById(id).addEventListener("keydown",function(e){
+    if(e.key==="Enter") document.getElementById("gGo").click();});
+});
+document.getElementById("lobCode").addEventListener("keydown",function(e){
+  if(e.key==="Enter") document.getElementById("lobJoin").click();});
+document.getElementById("lobEv").addEventListener("keydown",function(e){
+  if(e.key==="Enter") document.getElementById("lobCreate").click();});
 
-if(authed()){ openApp(); }
-else { load(); refresh(); document.getElementById("gMe").value=db.me||""; }
+/* ---------- demarrage ---------- */
+load(); refresh();
+if(!authed()){
+  document.getElementById("gMe").value=db.me||"";
+}else if(!db.room){
+  openLobby();
+}else{
+  enterApp();
+}
+
 if("serviceWorker" in navigator)
   window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
 })();
