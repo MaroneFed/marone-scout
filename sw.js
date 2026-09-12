@@ -1,4 +1,4 @@
-var CACHE="marone-scout-v3";
+var CACHE="nexus-scout-v4";
 var FILES=["./","./index.html","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",function(e){self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(FILES);}));});

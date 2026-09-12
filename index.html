@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#12101A">
-<title>Marone Scout</title>
+<title>NEXUS Scout</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon.svg">
 <style>
@@ -77,11 +77,14 @@ label{display:block;font-size:12.5px;color:var(--muted);margin:0 0 5px}
 .field{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
 padding:11px;font-size:16px;margin-bottom:11px}
 .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:0 0 9px}
-.ink{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 3px;border-radius:9px;
-background:var(--surface-2);border:1.5px solid var(--line);font-weight:600;font-size:12.5px}
-.ink .sq{width:20px;height:20px;border-radius:6px}
-.ink[aria-pressed="true"]{border-color:currentColor}
-.ink[aria-pressed="true"] .sq{box-shadow:0 0 0 3px rgba(255,255,255,.16)}
+.ink{display:flex;align-items:center;justify-content:center;padding:15px 4px;border-radius:10px;
+border:2px solid var(--ic);color:var(--ic);background:var(--surface-2);font-weight:700;font-size:13px;
+letter-spacing:.02em;position:relative;overflow:hidden}
+.ink:before{content:"";position:absolute;inset:0;background:var(--ic);opacity:.14}
+.ink span{position:relative}
+.ink[aria-pressed="true"]{color:#11101A;border-color:var(--ic)}
+.ink[aria-pressed="true"]:before{opacity:1}
+.ink[aria-pressed="true"] span{text-shadow:0 1px 0 rgba(255,255,255,.35)}
 .actions{display:flex;gap:7px;margin-top:5px}
 .btn{flex:1;padding:13px;border-radius:11px;font-weight:700;font-size:15.5px;text-align:center;
 background:var(--surface-2);border:1px solid var(--line)}
@@ -111,13 +114,44 @@ nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;st
 background:var(--surface-2);border:1px solid var(--line);padding:10px 17px;border-radius:999px;
 font-size:14px;font-weight:600;z-index:60;opacity:0;pointer-events:none;transition:opacity .18s;max-width:88vw;text-align:center}
 .toast.on{opacity:1}
+.gate{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;
+flex-direction:column;justify-content:center;padding:26px 22px;overflow:auto}
+.gate.off{display:none}
+.gate .logo{font-size:13px;letter-spacing:.3em;color:var(--muted);font-weight:700;margin-bottom:6px}
+.gate .logo b{color:var(--gold)}
+.gate h1{font-size:26px;margin:0 0 6px;font-weight:800;letter-spacing:-.01em}
+.gate p{color:var(--muted);font-size:14px;margin:0 0 22px;line-height:1.5}
+.gate .err{color:#FFC9CC;font-size:13.5px;margin:0 0 12px;min-height:18px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);
+border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+.badge i{width:7px;height:7px;border-radius:99px;background:var(--muted);display:block}
+.badge.on i{background:var(--ok)}
+.badge.ko i{background:var(--warn)}
+.logrow{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.logrow:last-child{border:0}
+.logrow .w{flex:1;min-width:0}
+.logrow .t{color:var(--muted);font-size:12px;flex:none}
+.logrow b{color:var(--gold);font-weight:700}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
+<div class="gate" id="gate">
+  <div class="logo">NEXUS <b>SCOUT</b></div>
+  <h1>Connexion equipe</h1>
+  <p>Acces reserve a l equipe. Les observations encodees sont partagees entre tous les membres connectes au meme salon.</p>
+  <div class="err" id="gErr"></div>
+  <label for="gUser">Identifiant</label>
+  <input id="gUser" class="field" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <label for="gPass">Mot de passe</label>
+  <input id="gPass" class="field" type="password" autocomplete="current-password">
+  <label for="gMe">Ton prenom ou pseudo <span class="sub">- pour signer tes saisies</span></label>
+  <input id="gMe" class="field" autocapitalize="words" autocorrect="off" spellcheck="false">
+  <div class="actions"><button class="btn primary" id="gGo">Entrer</button></div>
+</div>
 <header>
   <div class="brandline">
-    <div class="brand">MARONE <b>SCOUT</b></div>
+    <div class="brand">NEXUS <b>SCOUT</b></div>
     <div class="rsel">
       <select id="rSel" aria-label="Ronde"></select>
       <button class="sync" id="bSync" aria-label="Actualiser les appariements">&#8635;</button>
@@ -184,6 +218,25 @@ font-size:14px;font-weight:600;z-index:60;opacity:0;pointer-events:none;transiti
     <div class="card"><h3>Encres du field</h3><div id="inkStats"></div></div>
     <div class="card"><h3>Decks identifies</h3><div id="pairStats"></div></div>
     <div class="card">
+      <h3>Salon d equipe</h3>
+      <p class="sub" style="margin:0 0 10px" id="roomState">Aucun salon. Les donnees restent sur ce telephone.</p>
+      <label for="roomCode">Code du salon</label>
+      <input id="roomCode" class="field" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="colle le code de l equipe">
+      <div class="actions">
+        <button class="btn primary" id="bJoin">Rejoindre</button>
+        <button class="btn" id="bCreate">Creer</button>
+      </div>
+      <div class="actions">
+        <button class="btn" id="bPull">Recuperer</button>
+        <button class="btn" id="bPush">Envoyer</button>
+      </div>
+      <div class="actions"><button class="btn danger" id="bLeave">Quitter le salon</button></div>
+    </div>
+    <div class="card">
+      <h3>Journal d equipe</h3>
+      <div id="logList"></div>
+    </div>
+    <div class="card">
       <h3>Tournoi</h3>
       <label for="evId">Numero de l'evenement</label>
       <input id="evId" class="field" inputmode="numeric">
@@ -218,7 +271,8 @@ var INKS=[{k:"amber",n:"Ambre",c:"#E8A33D"},{k:"amethyst",n:"Amethyste",c:"#9B5F
 {k:"sapphire",n:"Saphir",c:"#3E8FD9"},{k:"steel",n:"Acier",c:"#97A3B5"}];
 var INK={};INKS.forEach(function(i){INK[i.k]=i;});
 
-var KEY="marone-scout-v3";
+var KEY="nexus-scout-v4";
+var OLDKEY="marone-scout-v3";
 var API="https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2";
 var PROXIES=[
   function(u){return {url:"https://r.jina.ai/"+u,opt:{headers:{"x-respond-with":"text"}}};},
@@ -226,8 +280,122 @@ var PROXIES=[
   function(u){return {url:"https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(u),opt:{}};}
 ];
 
-var db={ev:"924487",ami:"",cur:null,rounds:[],obs:{},regs:[]};
+var db={ev:"924487",ami:"",cur:null,rounds:[],obs:{},regs:[],room:"",me:""};
 var S=null,draft=null,view="scout",pFilter=null,tFilter=null,busy=false;
+
+/* ---------- acces equipe ----------
+   Le code tourne dans le navigateur : ce controle filtre les curieux,
+   il ne protege pas des donnees sensibles. N y mets rien de confidentiel. */
+var AUTH={u:"2zin68",p:"1xuvukx"};
+function hsh(s){var x=5381;for(var i=0;i<s.length;i++){x=((x<<5)+x)^s.charCodeAt(i);x=x>>>0;}
+  return x.toString(36);}
+function authed(){return sessionStorage.getItem("nexus-ok")==="1"||localStorage.getItem("nexus-ok")==="1";}
+
+/* ---------- salon partage ---------- */
+var SYNC={
+  base:"https://kvdb.io/",
+  create:async function(){
+    var r=await fetch(SYNC.base,{method:"POST",body:""});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    var id=(await r.text()).trim();
+    if(!id||id.length<6) throw new Error("reponse inattendue");
+    return id;
+  },
+  get:async function(room,key){
+    var r=await fetch(SYNC.base+encodeURIComponent(room)+"/"+encodeURIComponent(key));
+    if(r.status===404) return null;
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    var t=await r.text();
+    if(!t) return null;
+    return JSON.parse(t);
+  },
+  put:async function(room,key,val){
+    var r=await fetch(SYNC.base+encodeURIComponent(room)+"/"+encodeURIComponent(key),
+      {method:"PUT",body:JSON.stringify(val)});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return true;
+  }
+};
+var syncState="off",pushTimer=null,pullTimer=null;
+function roomKey(){return "ev-"+db.ev;}
+function myObs(){
+  var pre=db.ev+":",o={};
+  Object.keys(db.obs).forEach(function(k){if(k.indexOf(pre)===0) o[k]=db.obs[k];});
+  return o;
+}
+function mergeObs(remote){
+  var n=0;
+  Object.keys(remote||{}).forEach(function(k){
+    var r=remote[k],l=db.obs[k];
+    if(!r||!r.d) return;
+    if(!l||(r.at||0)>(l.at||0)){db.obs[k]=r;n++;}
+  });
+  return n;
+}
+function setSync(s,msg){
+  syncState=s;
+  var el=document.getElementById("roomState");
+  if(!el) return;
+  if(!db.room){el.className="sub";el.textContent="Aucun salon. Les donnees restent sur ce telephone.";return;}
+  el.className="sub";
+  el.innerHTML='<span class="badge '+(s==="ok"?"on":s==="ko"?"ko":"")+'"><i></i>'+
+    esc(msg||(s==="ok"?"synchronise":s==="ko"?"hors ligne":"salon actif"))+'</span> '+
+    '<span style="word-break:break-all">code '+esc(db.room)+'</span>';
+}
+async function pull(silent){
+  if(!db.room) return;
+  try{
+    var d=await SYNC.get(db.room,roomKey());
+    var n=mergeObs(d&&d.obs);
+    save();refresh();
+    setSync("ok","a jour");
+    if(!silent) toast(n?(n+" table(s) recuperee(s)"):"Deja a jour");
+    if(view==="tables") renderTables();
+    if(view==="scout") renderScout();
+    if(view==="meta") renderLog();
+  }catch(e){ setSync("ko","echec : "+e.message); if(!silent) toast("Recuperation impossible : "+e.message); }
+}
+async function push(silent){
+  if(!db.room) return;
+  try{
+    var d=null;
+    try{ d=await SYNC.get(db.room,roomKey()); }catch(e){}
+    if(d&&d.obs) mergeObs(d.obs);
+    await SYNC.put(db.room,roomKey(),{obs:myObs(),ev:db.ev,at:Date.now()});
+    save();refresh();
+    setSync("ok","a jour");
+    if(!silent) toast("Envoye au salon");
+  }catch(e){ setSync("ko","echec : "+e.message); if(!silent) toast("Envoi impossible : "+e.message); }
+}
+function schedulePush(){
+  if(!db.room) return;
+  clearTimeout(pushTimer);
+  setSync("wait","envoi...");
+  pushTimer=setTimeout(function(){push(true);},1500);
+}
+function startAutoPull(){
+  clearInterval(pullTimer);
+  if(!db.room) return;
+  pullTimer=setInterval(function(){
+    if(document.visibilityState==="visible"&&!draft) pull(true);
+  },30000);
+}
+function renderLog(){
+  var el=document.getElementById("logList");
+  if(!el) return;
+  var pre=db.ev+":";
+  var rows=Object.keys(db.obs).filter(function(k){return k.indexOf(pre)===0&&db.obs[k].at;})
+    .map(function(k){var p=k.split(":");return {r:p[1],t:p[2],o:db.obs[k]};})
+    .sort(function(a,b){return (b.o.at||0)-(a.o.at||0);}).slice(0,25);
+  if(!rows.length){el.innerHTML='<p class="sub" style="margin:0">Rien encode pour ce tournoi.</p>';return;}
+  el.innerHTML=rows.map(function(x){
+    var ds=(x.o.d||[]).filter(function(d){return d&&d.length;}).map(function(d){return dn(dk(d));}).join("  +  ");
+    var dt=new Date(x.o.at);
+    var hh=("0"+dt.getHours()).slice(-2)+":"+("0"+dt.getMinutes()).slice(-2);
+    return '<div class="logrow"><div class="w"><b>R'+esc(x.r)+' T'+esc(x.t)+'</b> '+esc(ds)+
+      '<div class="sub">par '+esc(x.o.by||"?")+'</div></div><div class="t">'+hh+'</div></div>';
+  }).join("");
+}
 
 /* ---------- utilitaires ---------- */
 function esc(s){return String(s===null||s===undefined?"":s).replace(/[&<>"']/g,function(c){
@@ -242,8 +410,8 @@ function uniq(a){return a.filter(function(x,i){return a.indexOf(x)===i;});}
 function toast(m){var t=document.getElementById("toast");t.textContent=m;t.classList.add("on");
   clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("on");},2400);}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){toast("Sauvegarde impossible");}}
-function load(){try{var r=localStorage.getItem(KEY);if(r){var p=JSON.parse(r);
-  if(p&&p.obs){db=p;db.rounds=db.rounds||[];db.obs=db.obs||{};db.regs=db.regs||[];db.ev=db.ev||"924487";}}}catch(e){}}
+function load(){try{var r=localStorage.getItem(KEY)||localStorage.getItem(OLDKEY);if(r){var p=JSON.parse(r);
+  if(p&&p.obs){db=p;db.rounds=db.rounds||[];db.obs=db.obs||{};db.regs=db.regs||[];db.ev=db.ev||"924487";db.room=db.room||"";db.me=db.me||"";}}}catch(e){}}
 function obsKey(num,t){return db.ev+":"+num+":"+t;}
 function getObs(num,t){return db.obs[obsKey(num,t)]||null;}
 function nDecks(o){return o?(o.d||[]).filter(function(d){return d&&d.length;}).length:0;}
@@ -581,9 +749,8 @@ function paintSlots(){
   [0,1].forEach(function(s){
     document.querySelector('.grid[data-slot="'+s+'"]').innerHTML=INKS.map(function(i){
       var on=draft.d[s].indexOf(i.k)>=0;
-      return '<button class="ink" data-slot="'+s+'" data-ink="'+i.k+'" aria-pressed="'+on+'" style="color:'+
-        (on?i.c:"var(--text)")+'"><span class="sq" style="background:'+
-        (on?i.c:"var(--line)")+'"></span>'+i.n+'</button>';
+      return '<button class="ink" data-slot="'+s+'" data-ink="'+i.k+'" aria-pressed="'+on+
+        '" style="--ic:'+i.c+'"><span>'+i.n+'</span></button>';
     }).join("");
   });
 }
@@ -600,8 +767,8 @@ function paintOwners(){
 function saveDraft(){
   var k=obsKey(draft.num,draft.t);
   if(!nDecks({d:draft.d})) delete db.obs[k];
-  else db.obs[k]={d:draft.d,o:draft.o};
-  save();refresh();
+  else db.obs[k]={d:draft.d,o:draft.o,by:db.me||"?",at:Date.now()};
+  save();refresh();schedulePush();
   var bad=S.filter(function(p){return p.conflict;});
   if(bad.length) toast("Contradiction sur "+bad[0].name+", verifie ses tables");
 }
@@ -650,6 +817,9 @@ function renderMeta(){
       '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+dn(o.k)+'</span></span>'+
       '<span class="n">'+o.n+'</span></div>';}).join("")
     :'<p class="sub" style="margin:0">Rien a compter.</p>';
+  document.getElementById("roomCode").value=db.room||"";
+  setSync(syncState);
+  renderLog();
   document.getElementById("evId").value=db.ev;
   document.getElementById("evInfo").textContent=db.evName
     ?(db.evName+" - "+db.evPlayers+" inscrits, "+db.rounds.length+" ronde(s) publiee(s)"):"";
@@ -824,7 +994,58 @@ document.addEventListener("click",function(e){
   if(nb){go(nb.dataset.go);return;}
 });
 
-load();refresh();renderRoundSelect();go("scout");
+document.getElementById("bCreate").addEventListener("click",async function(){
+  if(db.room&&!confirm("Remplacer le salon actuel par un nouveau ?")) return;
+  toast("Creation du salon...");
+  try{
+    var id=await SYNC.create();
+    db.room=id;save();
+    setSync("ok","salon cree");
+    document.getElementById("roomCode").value=id;
+    startAutoPull();
+    await push();
+    toast("Salon cree, partage le code");
+  }catch(e){ setSync("ko","echec"); toast("Creation impossible : "+e.message); }
+});
+document.getElementById("bJoin").addEventListener("click",async function(){
+  var v=document.getElementById("roomCode").value.trim();
+  if(!v){toast("Colle le code du salon");return;}
+  db.room=v;save();setSync("wait","connexion...");
+  startAutoPull();
+  await pull();
+});
+document.getElementById("bPull").addEventListener("click",function(){pull();});
+document.getElementById("bPush").addEventListener("click",function(){push();});
+document.getElementById("bLeave").addEventListener("click",function(){
+  if(!db.room){toast("Aucun salon");return;}
+  if(!confirm("Quitter le salon ? Tes donnees restent sur ce telephone.")) return;
+  db.room="";save();clearInterval(pullTimer);setSync("off");toast("Salon quitte");
+});
+
+function openApp(){
+  document.getElementById("gate").classList.add("off");
+  load();refresh();renderRoundSelect();go("scout");
+  if(db.room){ startAutoPull(); pull(true); }
+}
+document.getElementById("gGo").addEventListener("click",function(){
+  var u=document.getElementById("gUser").value.trim().toLowerCase();
+  var p=document.getElementById("gPass").value;
+  var me=document.getElementById("gMe").value.trim();
+  var err=document.getElementById("gErr");
+  if(hsh(u)!==AUTH.u||hsh(p)!==AUTH.p){err.textContent="Identifiant ou mot de passe incorrect.";return;}
+  if(!me){err.textContent="Mets ton prenom, il signe tes saisies.";return;}
+  err.textContent="";
+  localStorage.setItem("nexus-ok","1");
+  openApp();
+  db.me=me;save();
+});
+document.getElementById("gPass").addEventListener("keydown",function(e){
+  if(e.key==="Enter") document.getElementById("gGo").click();});
+document.getElementById("gMe").addEventListener("keydown",function(e){
+  if(e.key==="Enter") document.getElementById("gGo").click();});
+
+if(authed()){ openApp(); }
+else { load(); refresh(); document.getElementById("gMe").value=db.me||""; }
 if("serviceWorker" in navigator)
   window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
 })();
